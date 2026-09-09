@@ -1,11 +1,11 @@
 <div align="center">
 
-#  SolarWind Forecaster
+# SolarWind-Forecaster
 
-**A data science pipeline and LightGBM model for 15-minute forecasting of geomagnetic storm risk using massive NASA/NOAA datasets.**
+**A data science pipeline and LightGBM model suite for 15-minute forecasting of geomagnetic storm risk, SYM-H index prediction, and solar flare classification using NASA/NOAA datasets.**
 
 [![Python](https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![LightGBM](https://img.shields.io/badge/LightGBM-Gradient%20Boosting-ff69b4?style=for-the-badge&logo=jupyter&logoColor=white)](https://lightgbm.readthedocs.io/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-Gradient%20Boosting-2980B9?style=for-the-badge&logo=lightgbm&logoColor=white)](https://lightgbm.readthedocs.io/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Pandas](https://img.shields.io/badge/Pandas-Data%20Analysis-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
 
@@ -13,13 +13,13 @@
 
 ---
 
-##  Overview
+## Architecture Overview
 
-Developed as a highly robust Data Science portfolio project, this repository implements a complete machine learning pipeline for predicting severe space weather events (geomagnetic storms). It processes decades of high-resolution solar wind data from NASA and NOAA, builds complex time-series features, trains a LightGBM regressor using out-of-core techniques to handle memory constraints, and visualizes the results via an interactive Streamlit dashboard.
+Developed as a highly robust Data Science portfolio project, this repository implements a complete machine learning pipeline for predicting severe space weather events (geomagnetic storms). It processes decades of high-resolution solar wind data from NASA and NOAA, builds complex time-series features, trains LightGBM models for storm risk classification, SYM-H index regression, and solar flare prediction, and visualizes the results via an interactive Streamlit dashboard.
 
 ---
 
-###  Data Science Pipeline
+### Data Science Pipeline
 
 ```mermaid
 graph TD
@@ -34,14 +34,20 @@ graph TD
     E --> F[dataset.csv]
     end
     
-    subgraph "Out-of-Core Training"
-    F --> G(Create Parquet Shards)
-    G --> H{LightGBM Regressor}
-    H -->|Hyperparameter Tuning| I[models/symh_model.joblib]
+    subgraph "Model Training - LightGBM"
+    F --> G(Train/Val/Test Sharding)
+    G --> H1{Storm Risk Classifier}
+    G --> H2{SYM-H Regressor}
+    G --> H3{Flare Classifier}
+    H1 -->|Isotonic Calibration| I1[models/storm_model.joblib]
+    H2 --> I2[models/symh_model.joblib]
+    H3 -->|Isotonic Calibration| I3[models/flare_model.joblib]
     end
     
     subgraph "Inference & UI"
-    I --> J[Streamlit Dashboard]
+    I1 --> J[Streamlit Dashboard]
+    I2 --> J
+    I3 --> J
     J -->|Real-Time Predictions| K[Geomagnetic Storm Risk %]
     end
     
@@ -50,45 +56,50 @@ graph TD
     classDef logic fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000;
     
     class A,C,K io;
-    class B,D,F,G,I core;
-    class E,H,J logic;
+    class B,D,F,G,I1,I2,I3 core;
+    class E,H1,H2,H3,J logic;
 ```
 
-##  Features
+## Features
 
 | Stage | Description |
 |---|---|
-| **Data Ingestion** | Handles massive, highly-dimensional JSON and CSV dumps from standard government APIs (NASA/NOAA). |
-| **Feature Engineering** | Generates overlapping rolling windows (e.g., 15-min, 60-min means/stds) to give the models historical context. |
-| **Out-of-Core Training** | Solves memory limitation issues by sharding the 30-year dataset into smaller Parquet files and streaming them through LightGBM. |
-| **Streamlit Dashboard** | Provides a modern, reactive interface to perform Exploratory Data Analysis (EDA) and run real-time inference. |
+| **Data Ingestion** | Parses fixed-width NASA OMNIWeb 1-minute solar wind data and NOAA flare reports, handling sentinel missing values across 45+ columns. |
+| **Feature Engineering** | Generates overlapping rolling windows (15-min, 60-min means/stds/min/max/deltas) across 20 solar wind parameters to give the models historical context. |
+| **Model Training** | Trains three LightGBM models — a binary storm risk classifier, a SYM-H index regressor, and a solar flare classifier — using incremental shard-based training with Isotonic Regression calibration. |
+| **Streamlit Dashboard** | Provides a modern, reactive interface to perform Exploratory Data Analysis (EDA) and run real-time inference with live storm risk predictions. |
 
 ---
 
-##  Tech Stack
+## Technology Stack
 
-**Machine Learning** - LightGBM · Scikit-Learn · Joblib
-**Data Engineering** - Pandas · PyArrow (Parquet) · NumPy
-**Visualizations** - Matplotlib · Seaborn · Streamlit
-**Automation** - GitHub Actions (CI/CD) · Makefile
+| Component | Technologies |
+|:---|:---|
+| **Machine Learning** | `LightGBM`, `Scikit-learn` (Isotonic Regression), `Joblib` |
+| **Data Engineering** | `Pandas`, `NumPy`, `PyArrow` (Parquet I/O), `SciPy` |
+| **Visualizations** | `Matplotlib`, `Seaborn`, `Streamlit` |
+| **Automation** | `GitHub Actions (CI/CD)`, `Makefile` |
 
 ---
 
-##  Directory Structure
+## Project Structure
 
 ```
-Space-Weather-Sentinel/
+SolarWind-Forecaster/
 │
+├── configs/                    # Configuration files
+├── models_deploy/              # Saved model artifacts and metadata
 ├── notebooks/                  # Jupyter notebooks for Exploratory Data Analysis and Model Evaluation
-├── data/                       # Ignored by git; raw API dumps, intermediate CSVs, and Parquet shards
-├── models/                     # Saved LightGBM artifacts (.joblib)
+├── reports/                    # Generated reports
+├── scripts/                   # Utility scripts
 ├── src/                        # Core Python ML Pipeline
-│   ├── data_ingestion.py       # Download and parse logic
+│   ├── data_ingestion.py       # Fixed-width NASA OMNIWeb parser
 │   ├── feature_engineering.py  # Rolling windows and temporal feature creation
-│   ├── data_sharding.py        # Parquet shard creation
-│   ├── model_training.py       # Out-of-core LightGBM training loop
+│   ├── data_sharding.py        # Train/Val/Test Parquet splitting
+│   ├── model_training.py       # LightGBM incremental shard-based training
 │   ├── model_inference.py      # Real-time prediction wrappers
 │   └── experiments/            # Experimental scripts (LSTMs, Drag models)
+├── tests/                      # Unit tests
 ├── app.py                      # Streamlit interactive dashboard
 ├── Makefile                    # Automation shortcuts
 └── README.md                   # You are here
@@ -96,7 +107,7 @@ Space-Weather-Sentinel/
 
 ---
 
-##  Setup and Installation
+## Setup & Execution
 
 ### Prerequisites
 
@@ -106,8 +117,8 @@ Space-Weather-Sentinel/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Shashank17singh/Space-Weather-Sentinel.git
-cd Space-Weather-Sentinel
+git clone https://github.com/aryan11singh/SolarWind-Forecaster.git
+cd SolarWind-Forecaster
 ```
 
 ### 2. Install Dependencies
@@ -127,7 +138,7 @@ make data
 # 2. Add time-series lags and rolling features
 make features
 
-# 3. Shard the data and train the LightGBM models
+# 3. Shard the data and train the models
 make train
 ```
 
